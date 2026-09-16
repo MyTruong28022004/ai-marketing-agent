@@ -1,0 +1,37 @@
+{
+  "name": "ai-marketing-agent",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:api": "npm run start:dev --prefix server",
+    "predev:all": "npm run db:up && npm run db:deploy",
+    "dev:all": "concurrently --kill-others-on-fail -n web,api -c green,blue \"npm run dev\" \"npm run dev:api\"",
+    "build": "vite build",
+    "build:api": "npm run build --prefix server",
+    "build:all": "npm run build && npm run build:api",
+    "test:frontend-smoke": "node scripts/frontend-smoke.mjs",
+    "preview": "vite preview",
+    "db:up": "docker compose up -d --wait postgres redis minio",
+    "db:down": "docker compose down",
+    "db:migrate": "dotenv -e server/.env -- npx --prefix server prisma migrate dev --schema server/prisma/schema.prisma",
+    "db:deploy": "dotenv -e server/.env -- npx --prefix server prisma migrate deploy --schema server/prisma/schema.prisma",
+    "db:seed": "dotenv -e server/.env -- npm run prisma:seed --prefix server"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "lucide-react": "0.468.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "react-router-dom": "7.18.3",
+    "recharts": "2.15.0",
+    "simple-icons": "^16.31.0",
+    "vite": "6.4.3"
+  },
+  "devDependencies": {
+    "concurrently": "9.2.4",
+    "dotenv-cli": "11.0.0",
+    "playwright-core": "1.63.0"
+  }
+}

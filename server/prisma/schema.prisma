@@ -1,0 +1,445 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum WorkspaceRole {
+  SALES
+  MARKETER
+  ADMIN
+}
+
+enum OnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum OnboardingStep {
+  COMPANY
+  INDUSTRY
+  OFFERING
+  AUDIENCE
+  GOALS
+  BRAND
+  SOURCES
+  COMPETITORS
+  COMPLETE
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum IntegrationProvider {
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  YOUTUBE
+  LINKEDIN
+  GOOGLE_SEARCH_CONSOLE
+  GOOGLE_ADS
+  SEMRUSH
+}
+
+enum IntegrationStatus {
+  PENDING
+  CONNECTED
+  ERROR
+  REVOKED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum DocumentType {
+  BRAND_GUIDELINE
+  PRODUCT
+  AUDIENCE
+  RESEARCH
+  CAMPAIGN
+  OTHER
+}
+
+enum DocumentStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum CompetitorType {
+  DIRECT
+  INDIRECT
+  INSPIRATION
+  INDUSTRY
+}
+
+enum CompetitorSourceType {
+  WEBSITE
+  FACEBOOK_PAGE
+  META_AD_LIBRARY
+}
+
+enum MonitoringFrequency {
+  DAILY
+  WEEKLY
+}
+
+enum OpportunityType {
+  QUICK_WIN
+  KEYWORD_GAP
+  CONTENT_GAP
+  TREND
+  CAMPAIGN
+}
+
+enum OpportunityStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  DONE
+}
+
+model User {
+  id                String          @id @default(uuid())
+  email             String          @unique
+  passwordHash      String
+  name              String
+  status            UserStatus      @default(ACTIVE)
+  emailVerifiedAt   DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  memberships       Membership[]
+  sessions          RefreshSession[]
+  createdWorkspaces Workspace[]      @relation("WorkspaceCreator")
+  invitedMembers    Invitation[]     @relation("InvitationSender")
+  createdProjects   Project[]        @relation("ProjectCreator")
+  uploadedDocuments Document[]       @relation("DocumentUploader")
+  auditLogs         AuditLog[]       @relation("AuditActor")
+}
+
+model RefreshSession {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model Workspace {
+  id               String           @id @default(uuid())
+  name             String
+  slug             String           @unique
+  createdById      String
+  onboardingStatus OnboardingStatus @default(NOT_STARTED)
+  onboardingStep   OnboardingStep   @default(COMPANY)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  createdBy        User             @relation("WorkspaceCreator", fields: [createdById], references: [id])
+  companyProfile   CompanyProfile?
+  memberships      Membership[]
+  invitations      Invitation[]
+  projects         Project[]
+  integrations     Integration[]
+  competitors      Competitor[]
+  keywords         Keyword[]
+  opportunities    Opportunity[]
+  auditLogs        AuditLog[]
+}
+
+model Membership {
+  id          String        @id @default(uuid())
+  userId      String
+  workspaceId String
+  role        WorkspaceRole
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId, role])
+}
+
+model Invitation {
+  id          String           @id @default(uuid())
+  workspaceId String
+  email       String
+  role        WorkspaceRole
+  tokenHash   String           @unique
+  status      InvitationStatus @default(PENDING)
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy   User             @relation("InvitationSender", fields: [invitedById], references: [id])
+
+  @@index([workspaceId, email])
+}
+
+model CompanyProfile {
+  id              String    @id @default(uuid())
+  workspaceId     String    @unique
+  legalName       String?
+  website         String?
+  country         String?
+  timezone        String    @default("Asia/Ho_Chi_Minh")
+  language        String    @default("vi")
+  industry        String?
+  subIndustries   String[]
+  businessModel   String?
+  description     String?
+  products        Json?
+  audiences       Json?
+  goals           String[]
+  brandVoice      Json?
+  onboardingData  Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  workspaceId String
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User          @relation("ProjectCreator", fields: [createdById], references: [id])
+  documents   Document[]
+
+  @@index([workspaceId, status])
+}
+
+model Document {
+  id           String         @id @default(uuid())
+  projectId    String
+  name         String
+  type         DocumentType   @default(OTHER)
+  status       DocumentStatus @default(UPLOADING)
+  sourceUrl    String?
+  tags         String[]
+  uploadedById String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy   User           @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  versions     DocumentVersion[]
+
+  @@index([projectId, status])
+}
+
+model DocumentVersion {
+  id            String   @id @default(uuid())
+  documentId    String
+  version       Int
+  storageKey    String?
+  mimeType      String?
+  sizeBytes     Int?
+  extractedText String?
+  checksum      String?
+  createdAt     DateTime @default(now())
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunks        DocumentChunk[]
+
+  @@unique([documentId, version])
+}
+
+model DocumentChunk {
+  id                String          @id @default(uuid())
+  documentVersionId String
+  position          Int
+  content           String
+  metadata          Json?
+  documentVersion   DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([documentVersionId, position])
+}
+
+model Integration {
+  id                    String              @id @default(uuid())
+  workspaceId           String
+  provider              IntegrationProvider
+  status                IntegrationStatus   @default(PENDING)
+  externalAccountId     String?
+  externalAccountName   String?
+  encryptedAccessToken  String?
+  encryptedRefreshToken String?
+  tokenExpiresAt        DateTime?
+  scopes                String[]
+  settings              Json?
+  lastSyncedAt          DateTime?
+  lastError             String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  workspace             Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider, externalAccountId])
+  @@index([workspaceId, provider, status])
+}
+
+model Competitor {
+  id               String              @id @default(uuid())
+  workspaceId      String
+  name             String
+  type             CompetitorType      @default(DIRECT)
+  description      String?
+  frequency        MonitoringFrequency @default(WEEKLY)
+  active           Boolean             @default(true)
+  threatScore      Float?
+  contentScore     Float?
+  visibilityScore  Float?
+  campaignScore    Float?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  workspace        Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sources          CompetitorSource[]
+  snapshots        CompetitorSnapshot[]
+  opportunities    Opportunity[]
+
+  @@index([workspaceId, active])
+  @@unique([workspaceId, name])
+}
+
+model CompetitorSource {
+  id           String               @id @default(uuid())
+  competitorId String
+  type         CompetitorSourceType
+  url          String
+  externalId   String?
+  active       Boolean              @default(true)
+  lastCheckedAt DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  competitor   Competitor           @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@unique([competitorId, type, url])
+}
+
+model CompetitorSnapshot {
+  id           String     @id @default(uuid())
+  competitorId String
+  sourceUrl    String
+  sourceType   CompetitorSourceType
+  capturedAt   DateTime   @default(now())
+  title        String?
+  contentHash  String?
+  metrics      Json?
+  changes      Json?
+  confidence   Float?
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@index([competitorId, capturedAt])
+}
+
+model Keyword {
+  id          String          @id @default(uuid())
+  workspaceId String
+  text        String
+  locale      String          @default("vi-VN")
+  intent      String?
+  relevance   Float?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  snapshots   KeywordSnapshot[]
+
+  @@unique([workspaceId, text, locale])
+}
+
+model KeywordSnapshot {
+  id             String   @id @default(uuid())
+  keywordId      String
+  source         String
+  capturedAt     DateTime @default(now())
+  searchVolume   Int?
+  competition    Float?
+  position       Float?
+  impressions    Int?
+  clicks         Int?
+  ctr            Float?
+  growth         Float?
+  trendScore     Float?
+  metadata       Json?
+  keyword        Keyword  @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@index([keywordId, capturedAt])
+}
+
+model Opportunity {
+  id          String            @id @default(uuid())
+  workspaceId String
+  competitorId String?
+  type        OpportunityType
+  status      OpportunityStatus @default(PROPOSED)
+  title       String
+  summary     String
+  score       Float
+  confidence  Float?
+  urgency     Float?
+  effort      Float?
+  recommendation Json?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  competitor  Competitor?       @relation(fields: [competitorId], references: [id], onDelete: SetNull)
+  evidence    OpportunityEvidence[]
+
+  @@index([workspaceId, status, score])
+}
+
+model OpportunityEvidence {
+  id            String      @id @default(uuid())
+  opportunityId String
+  sourceType    String
+  sourceUrl     String?
+  capturedAt    DateTime
+  payload       Json
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([opportunityId])
+}
+
+model AuditLog {
+  id          String     @id @default(uuid())
+  workspaceId String?
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime   @default(now())
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  actor       User?      @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+}

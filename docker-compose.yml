@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: milo
+      POSTGRES_USER: milo
+      POSTGRES_PASSWORD: milo_dev_password
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - milo_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U milo -d milo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:56380:6379"
+    volumes:
+      - milo_redis:/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: milo
+      MINIO_ROOT_PASSWORD: milo_dev_password
+    ports:
+      - "127.0.0.1:59002:9000"
+      - "127.0.0.1:59003:9001"
+    volumes:
+      - milo_minio:/data
+
+volumes:
+  milo_postgres:
+  milo_redis:
+  milo_minio:
