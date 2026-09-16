@@ -36,6 +36,17 @@ Tại bước Doanh nghiệp, nhập website và bấm **Tự động điền**.
 
 Các tác vụ marketing của Codex dùng bộ skill được cài tại `.agents/skills`. `AGENTS.md` ở thư mục gốc định tuyến tác vụ đến skill phù hợp và yêu cầu mọi luồng backend tự động không ghi dữ liệu tenant ra filesystem. Cập nhật bộ skill từ nguồn `coreyhaines31/marketingskills` bằng skill installer trước khi nâng phiên bản.
 
+Để dùng gateway [codex2claudecode](https://github.com/alvin0/codex2claudecode) thay cho Codex SDK trực tiếp, khởi động gateway riêng rồi cấu hình:
+
+```env
+AI_PROVIDER="codex-gateway"
+AI_GATEWAY_BASE_URL="http://127.0.0.1:8787/codex/v1"
+AI_GATEWAY_API_KEY="codex2claudecode"
+AI_GATEWAY_MODEL="gpt-5.6-sol"
+```
+
+Đường dẫn `/codex/v1` được dùng để tránh xung đột giữa API OpenAI-compatible và Claude-compatible của gateway. Nếu gateway được bảo vệ bằng `--password`, đặt `AI_GATEWAY_API_KEY` bằng đúng password đó. Cấu hình này là opt-in; `codex-local` vẫn là mặc định và các tác vụ hiện có tiếp tục dùng sandbox chỉ đọc, web search và structured output như trước.
+
 Chế độ này dành cho ứng dụng chạy local hoặc môi trường riêng vì backend dùng thông tin đăng nhập Codex của người vận hành. Nếu triển khai dịch vụ công khai cho nhiều người dùng, chuyển sang OpenAI API:
 
 ```env

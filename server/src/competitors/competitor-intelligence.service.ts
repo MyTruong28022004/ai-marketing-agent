@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import OpenAI from 'openai'
 import { PrismaService } from '../prisma/prisma.service'
+import { AiProvider, createAiRuntime, gatewayReasoning } from '../ai/ai-provider'
 
 type CodexSdkModule = typeof import('@openai/codex-sdk')
 const importEsm = new Function('modulePath', 'return import(modulePath)') as (modulePath: string) => Promise<unknown>
@@ -65,17 +66,17 @@ type AiIntelligence = { summary: string; opportunities: AiOpportunity[]; keyword
 @Injectable()
 export class CompetitorIntelligenceService {
   private readonly logger = new Logger(CompetitorIntelligenceService.name)
-  private readonly provider: 'codex-local' | 'openai'
-  private readonly openAiModel: string
+  private readonly provider: AiProvider
+  private readonly model: string | undefined
   private readonly codexModel: string | undefined
   private readonly client: OpenAI | null
 
   constructor(private readonly prisma: PrismaService, config: ConfigService) {
-    const apiKey = config.get<string>('OPENAI_API_KEY')?.trim()
-    this.provider = config.get<string>('AI_PROVIDER')?.trim() === 'openai' ? 'openai' : 'codex-local'
-    this.openAiModel = config.get<string>('OPENAI_MODEL')?.trim() || 'gpt-5-mini'
-    this.codexModel = config.get<string>('CODEX_MODEL')?.trim() || undefined
-    this.client = apiKey ? new OpenAI({ apiKey, timeout: 120_000, maxRetries: 1 }) : null
+    const runtime = createAiRuntime(config, 120_000)
+    this.provider = runtime.provider
+    this.model = runtime.model
+    this.codexModel = runtime.provider === 'codex-local' ? runtime.model : undefined
+    this.client = runtime.client
   }
 
   async get(workspaceId: string) {
@@ -132,7 +133,7 @@ export class CompetitorIntelligenceService {
     try {
       const result = this.provider === 'codex-local' ? await this.withCodex(context) : await this.withOpenAI(context, actorId)
       await this.persist(workspaceId, actorId, workspace.competitors, result)
-      return { provider: this.provider, model: this.provider === 'codex-local' ? this.codexModel || 'codex-default' : this.openAiModel, ...(await this.get(workspaceId)) }
+      return { provider: this.provider, model: this.model || 'codex-default', ...(await this.get(workspaceId)) }
     } catch (error) {
       if (error instanceof ServiceUnavailableException || error instanceof BadGatewayException) throw error
       const message = error instanceof Error ? error.message : 'Unknown error'
@@ -159,7 +160,7 @@ export class CompetitorIntelligenceService {
   private async withOpenAI(context: unknown, actorId: string) {
     if (!this.client) throw new ServiceUnavailableException('Chưa cấu hình OPENAI_API_KEY cho provider OpenAI API.')
     const response = await this.client.responses.create({
-      model: this.openAiModel, store: false, safety_identifier: createHash('sha256').update(actorId).digest('hex'),
+      model: this.model!, ...gatewayReasoning(this.provider, 'medium'), store: false, safety_identifier: createHash('sha256').update(actorId).digest('hex'),
       tools: [{ type: 'web_search', external_web_access: true, search_context_size: 'high' }], tool_choice: 'required', max_output_tokens: 7_000,
       instructions: this.instructions(), input: `Bối cảnh phân tích:\n${JSON.stringify(context)}`,
       text: { verbosity: 'low', format: { type: 'json_schema', name: 'competitor_intelligence', strict: true, schema: intelligenceSchema } },

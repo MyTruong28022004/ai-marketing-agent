@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import OpenAI from 'openai'
+import { AiProvider, createAiRuntime, gatewayReasoning } from '../ai/ai-provider'
 
 type CodexSdkModule = typeof import('@openai/codex-sdk')
 
@@ -68,16 +69,16 @@ export type WebsiteProfile = {
 export class WebsiteAnalysisService {
   private readonly logger = new Logger(WebsiteAnalysisService.name)
   private readonly client: OpenAI | null
-  private readonly provider: 'codex-local' | 'openai'
-  private readonly openAiModel: string
+  private readonly provider: AiProvider
+  private readonly model: string | undefined
   private readonly codexModel: string | undefined
 
   constructor(config: ConfigService) {
-    const apiKey = config.get<string>('OPENAI_API_KEY')?.trim()
-    this.provider = config.get<string>('AI_PROVIDER')?.trim() === 'openai' ? 'openai' : 'codex-local'
-    this.openAiModel = config.get<string>('OPENAI_MODEL')?.trim() || 'gpt-5-mini'
-    this.codexModel = config.get<string>('CODEX_MODEL')?.trim() || undefined
-    this.client = apiKey ? new OpenAI({ apiKey, timeout: 60_000, maxRetries: 1 }) : null
+    const runtime = createAiRuntime(config, 60_000)
+    this.provider = runtime.provider
+    this.model = runtime.model
+    this.codexModel = runtime.provider === 'codex-local' ? runtime.model : undefined
+    this.client = runtime.client
   }
 
   async analyze(website: string, userId: string) {
@@ -92,7 +93,7 @@ export class WebsiteAnalysisService {
       return {
         website: normalizedWebsite,
         provider: this.provider,
-        model: this.provider === 'codex-local' ? this.codexModel || 'codex-default' : this.openAiModel,
+        model: this.model || 'codex-default',
         profile,
       }
     } catch (error) {
@@ -133,7 +134,8 @@ export class WebsiteAnalysisService {
     }
 
     const response = await this.client.responses.create({
-        model: this.openAiModel,
+        model: this.model!,
+        ...gatewayReasoning(this.provider, 'low'),
         store: false,
         safety_identifier: createHash('sha256').update(userId).digest('hex'),
         tools: [{

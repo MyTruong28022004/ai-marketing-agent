@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import OpenAI from 'openai'
 import { PrismaService } from '../prisma/prisma.service'
+import { AiProvider, createAiRuntime, gatewayReasoning } from '../ai/ai-provider'
 
 type CodexSdkModule = typeof import('@openai/codex-sdk')
 
@@ -64,8 +65,8 @@ type DiscoveryResult = { summary: string; competitors: DiscoveryCandidate[] }
 @Injectable()
 export class CompetitorDiscoveryService {
   private readonly logger = new Logger(CompetitorDiscoveryService.name)
-  private readonly provider: 'codex-local' | 'openai'
-  private readonly openAiModel: string
+  private readonly provider: AiProvider
+  private readonly model: string | undefined
   private readonly codexModel: string | undefined
   private readonly client: OpenAI | null
 
@@ -73,11 +74,11 @@ export class CompetitorDiscoveryService {
     private readonly prisma: PrismaService,
     config: ConfigService,
   ) {
-    const apiKey = config.get<string>('OPENAI_API_KEY')?.trim()
-    this.provider = config.get<string>('AI_PROVIDER')?.trim() === 'openai' ? 'openai' : 'codex-local'
-    this.openAiModel = config.get<string>('OPENAI_MODEL')?.trim() || 'gpt-5-mini'
-    this.codexModel = config.get<string>('CODEX_MODEL')?.trim() || undefined
-    this.client = apiKey ? new OpenAI({ apiKey, timeout: 120_000, maxRetries: 1 }) : null
+    const runtime = createAiRuntime(config, 120_000)
+    this.provider = runtime.provider
+    this.model = runtime.model
+    this.codexModel = runtime.provider === 'codex-local' ? runtime.model : undefined
+    this.client = runtime.client
   }
 
   async discover(workspaceId: string, actorId: string) {
@@ -110,7 +111,7 @@ export class CompetitorDiscoveryService {
       const persisted = await this.persist(workspaceId, actorId, candidates, research.summary)
       return {
         provider: this.provider,
-        model: this.provider === 'codex-local' ? this.codexModel || 'codex-default' : this.openAiModel,
+        model: this.model || 'codex-default',
         summary: research.summary,
         suggestedCount: candidates.length,
         ...persisted,
@@ -150,7 +151,8 @@ export class CompetitorDiscoveryService {
   private async discoverWithOpenAI(context: unknown, actorId: string) {
     if (!this.client) throw new ServiceUnavailableException('Chưa cấu hình OPENAI_API_KEY cho provider OpenAI API.')
     const response = await this.client.responses.create({
-      model: this.openAiModel,
+      model: this.model!,
+      ...gatewayReasoning(this.provider, 'medium'),
       store: false,
       safety_identifier: createHash('sha256').update(actorId).digest('hex'),
       tools: [{ type: 'web_search', external_web_access: true, search_context_size: 'high' }],
