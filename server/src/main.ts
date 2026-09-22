@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { NestFactory } from '@nestjs/core'
 import cookie from '@fastify/cookie'
 import helmet from '@fastify/helmet'
+import multipart from '@fastify/multipart'
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify'
 import { AppModule } from './app.module'
 
@@ -13,6 +14,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api')
   await app.register(helmet)
   await app.register(cookie)
+  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024, files: 1 } })
   app.enableCors({
     origin: config.getOrThrow<string>('WEB_ORIGIN'),
     credentials: true,

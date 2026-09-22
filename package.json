@@ -20,9 +20,13 @@
     "db:seed": "dotenv -e server/.env -- npm run prisma:seed --prefix server"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-select": "^2.3.7",
     "@vitejs/plugin-react": "4.3.4",
+    "date-fns": "^4.4.0",
     "lucide-react": "0.468.0",
     "react": "19.1.1",
+    "react-day-picker": "^10.0.1",
     "react-dom": "19.1.1",
     "react-router-dom": "7.18.3",
     "recharts": "2.15.0",

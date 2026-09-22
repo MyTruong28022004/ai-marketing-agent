@@ -15,6 +15,8 @@ import {
 import AuthPage from './auth/AuthPage'
 import { useAuth } from './auth/AuthContext'
 import IntelligenceCenter from './features/intelligence/IntelligenceCenter'
+import ProductKnowledgeView from './features/brand-brain/ProductKnowledgeView'
+import WeeklyPlanView from './features/weekly-plan/WeeklyPlanView'
 import OnboardingPage from './onboarding/OnboardingPage'
 import BrandIcon from './components/BrandIcon'
 
@@ -26,7 +28,7 @@ const EmailBrandIcon = props => <BrandIcon icon={siGmail} {...props}/>
 const navGroups = [
   { label: 'TỔNG QUAN', items: [
     { name: 'Trang chủ', icon: LayoutDashboard },
-    { name: 'Kế hoạch tuần', icon: CalendarDays, badge: 4 },
+    { name: 'Kế hoạch', icon: CalendarDays, badge: 4 },
     { name: 'AI Agent', icon: Sparkles },
   ]},
   { label: 'SÁNG TẠO & PHÂN PHỐI', items: [
@@ -45,7 +47,7 @@ const navGroups = [
 
 const routePaths = {
   'Trang chủ': '/',
-  'Kế hoạch tuần': '/weekly-plan',
+  'Kế hoạch': '/weekly-plan',
   'AI Agent': '/ai-agent',
   'Content Studio': '/content-studio',
   'Mạng xã hội': '/social-media',
@@ -318,7 +320,7 @@ function ChatDrawer({ open, onClose, showToast, workspaceName, userName }) {
 
 function PlaceholderView({ title, setActive, workspaceName }) {
   const details = {
-    'Kế hoạch tuần': ['12 nội dung','2 chiến dịch','1 chuỗi email'],
+    'Kế hoạch': ['12 nội dung','2 chiến dịch','1 chuỗi email'],
     'AI Agent': ['Autopilot đang bật','3 cơ hội mới','4 tác vụ chờ duyệt'],
     'Content Studio': ['Caption mạng xã hội','Bài blog chuẩn SEO','Email marketing'],
     'Mạng xã hội': ['Instagram','Facebook','TikTok'],
@@ -379,7 +381,7 @@ export default function App() {
             </div>
             <div className="dashboard-aside"><AgentCard setChatOpen={setChatOpen} userName={user.name} workspaceName={workspace.name}/><ChannelHealth/></div>
           </div>
-        </> : active === 'Radar đối thủ' ? <IntelligenceCenter workspaceId={workspace.id} role={role}/> : <PlaceholderView title={active} setActive={setActive} workspaceName={workspace.name}/>} 
+        </> : active === 'Kế hoạch' ? <WeeklyPlanView workspaceId={workspace.id} role={role} userId={user.id}/> : active === 'Radar đối thủ' ? <IntelligenceCenter workspaceId={workspace.id} role={role} initialTab={new URLSearchParams(location.search).get('tab') || 'competitors'}/> : active === 'Tích hợp' ? <IntelligenceCenter workspaceId={workspace.id} role={role} initialTab="social"/> : active === 'Brand Brain' ? <ProductKnowledgeView workspaceId={workspace.id} role={role}/> : <PlaceholderView title={active} setActive={setActive} workspaceName={workspace.name}/>}
       </main>
     </div>
     <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} showToast={showToast} workspaceName={workspace.name} userName={user.name}/>
