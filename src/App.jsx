@@ -15,6 +15,8 @@ import {
 import AuthPage from './auth/AuthPage'
 import { useAuth } from './auth/AuthContext'
 import IntelligenceCenter from './features/intelligence/IntelligenceCenter'
+import ProductKnowledgeView from './features/brand-brain/ProductKnowledgeView'
+import WeeklyPlanView from './features/weekly-plan/WeeklyPlanView'
 import OnboardingPage from './onboarding/OnboardingPage'
 import BrandIcon from './components/BrandIcon'
 import TeamAccess from './features/access/TeamAccess'
@@ -31,7 +33,7 @@ const VideoStudio = lazy(() => import('./features/video/VideoStudio'))
 const navGroups = [
   { label: 'TỔNG QUAN', items: [
     { name: 'Trang chủ', icon: LayoutDashboard },
-    { name: 'Kế hoạch tuần', icon: CalendarDays, badge: 4 },
+    { name: 'Kế hoạch', icon: CalendarDays, badge: 4 },
     { name: 'AI Agent', icon: Sparkles },
   ]},
   { label: 'SÁNG TẠO & PHÂN PHỐI', items: [
@@ -56,7 +58,7 @@ const navGroups = [
 
 const routePaths = {
   'Trang chủ': '/',
-  'Kế hoạch tuần': '/weekly-plan',
+  'Kế hoạch': '/weekly-plan',
   'AI Agent': '/ai-agent',
   'Content Studio': '/content-studio',
   'Video Studio': '/video-studio',
@@ -351,7 +353,7 @@ function ChatDrawer({ open, onClose, showToast, workspaceName, userName }) {
 
 function PlaceholderView({ title, setActive, workspaceName }) {
   const details = {
-    'Kế hoạch tuần': ['12 nội dung','2 chiến dịch','1 chuỗi email'],
+    'Kế hoạch': ['12 nội dung','2 chiến dịch','1 chuỗi email'],
     'AI Agent': ['Autopilot đang bật','3 cơ hội mới','4 tác vụ chờ duyệt'],
     'Content Studio': ['Caption mạng xã hội','Bài blog chuẩn SEO','Email marketing'],
     'Mạng xã hội': ['Instagram','Facebook','TikTok'],
@@ -424,10 +426,16 @@ export default function App() {
             : active === 'Thành viên & quyền'
               ? <TeamAccess workspaceId={workspace.id} showToast={showToast}/>
               : active === 'Radar đối thủ'
-          ? <IntelligenceCenter workspaceId={workspace.id} role={role}/>
-          : active === 'Video Studio'
-            ? <Suspense fallback={<div className="app-loading"><span className="button-spinner dark"/><p>Đang tải Video Studio...</p></div>}><VideoStudio key={workspace.id} workspaceId={workspace.id} workspaceName={workspace.name} showToast={showToast}/></Suspense>
-            : <PlaceholderView title={active} setActive={setActive} workspaceName={workspace.name}/>}
+                ? <IntelligenceCenter workspaceId={workspace.id} role={role} initialTab={new URLSearchParams(location.search).get('tab') || 'competitors'}/>
+                : active === 'Tích hợp'
+                  ? <IntelligenceCenter workspaceId={workspace.id} role={role} initialTab="social"/>
+                  : active === 'Brand Brain'
+                    ? <ProductKnowledgeView workspaceId={workspace.id} role={role}/>
+                    : active === 'Kế hoạch'
+                      ? <WeeklyPlanView workspaceId={workspace.id} role={role} userId={user.id}/>
+                      : active === 'Video Studio'
+                        ? <Suspense fallback={<div className="app-loading"><span className="button-spinner dark"/><p>Đang tải Video Studio...</p></div>}><VideoStudio key={workspace.id} workspaceId={workspace.id} workspaceName={workspace.name} showToast={showToast}/></Suspense>
+                        : <PlaceholderView title={active} setActive={setActive} workspaceName={workspace.name}/>}
       </main>
     </div>
     <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} showToast={showToast} workspaceName={workspace.name} userName={user.name}/>

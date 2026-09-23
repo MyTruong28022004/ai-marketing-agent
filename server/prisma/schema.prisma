@@ -106,6 +106,66 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+enum ProductStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ContentPlanStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  RETURNED
+  ACTIVE
+  ARCHIVED
+}
+
+enum ContentPostStatus {
+  PLANNED
+  WRITTEN
+  PUBLISHED
+  CANCELLED
+}
+
+enum ContentPostReviewStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  RETURNED
+}
+
+enum ContentPlatform {
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  LINKEDIN
+  YOUTUBE
+}
+
+enum ContentPillar {
+  BRAND
+  PRODUCT_SERVICE
+  EDUCATION
+  PROBLEM_SOLUTION
+  SALES
+  CUSTOMER_PROOF
+  INTERNAL_CULTURE
+  FAQ
+  CUSTOMER_SUPPORT
+  RECRUITING
+  PARTNERS_ACHIEVEMENTS
+}
+
+enum ContentFormatType {
+  TEXT_POST
+  REEL
+  CAROUSEL
+  INFOGRAPHIC
+  QUOTE
+  STORY
+  CHECKLIST
+}
+
 enum DocumentType {
   BRAND_GUIDELINE
   PRODUCT
@@ -179,27 +239,29 @@ enum VoiceProfileStatus {
 }
 
 model User {
-  id                String             @id @default(uuid())
-  email             String             @unique
-  passwordHash      String
-  name              String
-  status            UserStatus         @default(ACTIVE)
-  emailVerifiedAt   DateTime?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  memberships       Membership[]
-  sessions          RefreshSession[]
-  createdWorkspaces Workspace[]        @relation("WorkspaceCreator")
-  invitedMembers    Invitation[]       @relation("InvitationSender")
-  createdProjects   Project[]          @relation("ProjectCreator")
-  uploadedDocuments Document[]         @relation("DocumentUploader")
-  auditLogs         AuditLog[]         @relation("AuditActor")
-  videoProjects     VideoProject[]     @relation("VideoProjectCreator")
-  voiceProfiles     VoiceProfile[]     @relation("VoiceProfileCreator")
-  createdLeads      Lead[]             @relation("LeadCreator")
-  assignedLeads     Lead[]             @relation("LeadAssignee")
-  tokenTransactions TokenTransaction[] @relation("TokenTransactionActor")
-  billingOrders     BillingOrder[]     @relation("BillingOrderCreator")
+  id                    String             @id @default(uuid())
+  email                 String             @unique
+  passwordHash          String
+  name                  String
+  status                UserStatus         @default(ACTIVE)
+  emailVerifiedAt       DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  memberships           Membership[]
+  sessions              RefreshSession[]
+  createdWorkspaces     Workspace[]        @relation("WorkspaceCreator")
+  invitedMembers        Invitation[]       @relation("InvitationSender")
+  createdProjects       Project[]          @relation("ProjectCreator")
+  uploadedDocuments     Document[]         @relation("DocumentUploader")
+  auditLogs             AuditLog[]         @relation("AuditActor")
+  videoProjects         VideoProject[]     @relation("VideoProjectCreator")
+  voiceProfiles         VoiceProfile[]     @relation("VoiceProfileCreator")
+  createdLeads          Lead[]             @relation("LeadCreator")
+  assignedLeads         Lead[]             @relation("LeadAssignee")
+  tokenTransactions     TokenTransaction[] @relation("TokenTransactionActor")
+  billingOrders         BillingOrder[]     @relation("BillingOrderCreator")
+  createdKeywordFolders KeywordFolder[]    @relation("KeywordFolderCreator")
+  createdContentPlans   ContentPlan[]      @relation("ContentPlanCreator")
 }
 
 model RefreshSession {
@@ -241,6 +303,10 @@ model Workspace {
   subscription      WorkspaceSubscription?
   tokenTransactions TokenTransaction[]
   billingOrders     BillingOrder[]
+  keywordFolders    KeywordFolder[]
+  products          Product[]
+  contentPlans      ContentPlan[]
+  facebookAppConfig FacebookAppConfig?
 }
 
 model Lead {
@@ -470,9 +536,82 @@ model Project {
   @@index([workspaceId, status])
 }
 
+model Product {
+  id           String        @id @default(uuid())
+  workspaceId  String
+  name         String
+  slug         String
+  description  String?
+  status       ProductStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  documents    Document[]
+  contentPosts ContentPost[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, status])
+}
+
+model ContentPlan {
+  id           String            @id @default(uuid())
+  workspaceId  String
+  createdById  String
+  name         String?
+  startDate    DateTime
+  endDate      DateTime
+  postCount    Int
+  status       ContentPlanStatus @default(DRAFT)
+  returnReason String?
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy    User              @relation("ContentPlanCreator", fields: [createdById], references: [id])
+  posts        ContentPost[]
+
+  @@index([workspaceId, startDate, endDate])
+}
+
+model ContentPost {
+  id                String                  @id @default(uuid())
+  planId            String
+  productId         String?
+  scheduledDate     DateTime
+  platform          ContentPlatform
+  pillar            ContentPillar
+  format            ContentFormatType
+  contentType       String
+  title             String
+  highlight         String
+  keyword           String
+  contentBody       String?
+  searchVolume      Int?
+  volumePeriod      String?
+  refUrl            String?
+  status            ContentPostStatus       @default(PLANNED)
+  reviewStatus      ContentPostReviewStatus @default(DRAFT)
+  reviewReason      String?
+  reviewSubmittedAt DateTime?
+  reviewApprovedAt  DateTime?
+  publishedAt       DateTime?
+  publishedUrl      String?
+  publishError      String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  plan              ContentPlan             @relation(fields: [planId], references: [id], onDelete: Cascade)
+  product           Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([planId, scheduledDate])
+  @@index([productId])
+  @@index([scheduledDate, status])
+}
+
 model Document {
   id           String            @id @default(uuid())
   projectId    String
+  productId    String?
   name         String
   type         DocumentType      @default(OTHER)
   status       DocumentStatus    @default(UPLOADING)
@@ -483,23 +622,28 @@ model Document {
   updatedAt    DateTime          @updatedAt
   project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploadedBy   User              @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  product      Product?          @relation(fields: [productId], references: [id], onDelete: Cascade)
   versions     DocumentVersion[]
 
   @@index([projectId, status])
+  @@index([productId, status])
 }
 
 model DocumentVersion {
-  id            String          @id @default(uuid())
-  documentId    String
-  version       Int
-  storageKey    String?
-  mimeType      String?
-  sizeBytes     Int?
-  extractedText String?
-  checksum      String?
-  createdAt     DateTime        @default(now())
-  document      Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  chunks        DocumentChunk[]
+  id             String          @id @default(uuid())
+  documentId     String
+  version        Int
+  storageKey     String?
+  mimeType       String?
+  sizeBytes      Int?
+  extractedText  String?
+  checksum       String?
+  embeddingModel String?
+  indexedAt      DateTime?
+  indexError     String?
+  createdAt      DateTime        @default(now())
+  document       Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunks         DocumentChunk[]
 
   @@unique([documentId, version])
 }
@@ -510,6 +654,9 @@ model DocumentChunk {
   position          Int
   content           String
   metadata          Json?
+  vectorId          String?
+  embeddingModel    String?
+  indexedAt         DateTime?
   documentVersion   DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
 
   @@unique([documentVersionId, position])
@@ -535,6 +682,17 @@ model Integration {
 
   @@unique([workspaceId, provider, externalAccountId])
   @@index([workspaceId, provider, status])
+}
+
+model FacebookAppConfig {
+  id                 String    @id @default(uuid())
+  workspaceId        String    @unique
+  appId              String
+  encryptedAppSecret String
+  loginConfigId      String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model Competitor {
@@ -592,16 +750,17 @@ model CompetitorSnapshot {
 }
 
 model Keyword {
-  id          String            @id @default(uuid())
+  id          String              @id @default(uuid())
   workspaceId String
   text        String
-  locale      String            @default("vi-VN")
+  locale      String              @default("vi-VN")
   intent      String?
   relevance   Float?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   snapshots   KeywordSnapshot[]
+  folderItems KeywordFolderItem[]
 
   @@unique([workspaceId, text, locale])
 }
@@ -623,6 +782,32 @@ model KeywordSnapshot {
   keyword      Keyword  @relation(fields: [keywordId], references: [id], onDelete: Cascade)
 
   @@index([keywordId, capturedAt])
+}
+
+model KeywordFolder {
+  id          String              @id @default(uuid())
+  workspaceId String
+  name        String
+  createdById String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User                @relation("KeywordFolderCreator", fields: [createdById], references: [id])
+  items       KeywordFolderItem[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, createdAt])
+}
+
+model KeywordFolderItem {
+  folderId  String
+  keywordId String
+  savedAt   DateTime      @default(now())
+  folder    KeywordFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  keyword   Keyword       @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@id([folderId, keywordId])
+  @@index([keywordId, savedAt])
 }
 
 model Opportunity {
@@ -657,6 +842,18 @@ model OpportunityEvidence {
   opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
 
   @@index([opportunityId])
+}
+
+model Topic {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  industry    String   @default("Khác")
+  description String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model AuditLog {

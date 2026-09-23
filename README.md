@@ -535,3 +535,213 @@ Khi bàn giao cho thành viên mới, hãy cung cấp thêm các thông tin chư
 ---
 
 Milo được xây dựng để biến marketing đa kênh thành một luồng công việc đơn giản: hiểu thương hiệu, đề xuất kế hoạch, tạo nội dung, xin phê duyệt, thực thi và học từ kết quả.
+
+---
+## Bổ sung: chạy MinIO, ChromaDB và Ollama local
+
+Phần này bổ sung hướng dẫn hạ tầng local cho luồng Knowledge Base của Milo. Các mô tả và hướng dẫn cũ ở phía trên được giữ nguyên.
+
+### Tải MinIO
+~~~powershell
+1. Mở powershell
+2. nhập: docker pull quay.io/minio/minio
+3: docker images
+4. Tạo vùng lưu trữ cho MinIO: docker volume create minio_data
+5. Chạy MinIO: docker run -d --name minio -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=MinioLocal_ChangeMe_2026_9xQ" -v minio_data:/data quay.io/minio/minio:latest server /data --console-address ":9001"
+6. Mở mino: http://localhost:9001
+7. Đăng nhập:
+			Username: minioadmin
+			Password: MinioLocal_ChangeMe_2026_9xQ
+8. Tạo bucket: milo-app-dev-files
+
+~~~
+
+### tải chromaDB
+1. docker pull chromadb/chroma:latest
+2. Tạo nơi lưu dữ liệu ChromaDB: docker volume create chroma_data
+3. Chạy ChromaDB: docker run -d --name chromadb --restart unless-stopped -p 8000:8000 -e IS_PERSISTENT=TRUE -e PERSIST_DIRECTORY=/chroma/chroma -v chroma_data:/chroma/chroma chromadb/chroma:latest
+4. ChromaDB sẽ chạy tại: http://localhost:8000
+~~~
+
+ChromaDB chạy tại http://localhost:8000. Cấu hình local:
+
+~~~dotenv
+CHROMA_URL="http://localhost:8000"
+CHROMA_TENANT="default_tenant"
+CHROMA_DATABASE="default_database"
+CHROMA_TOKEN=""
+~~~
+
+Trong môi trường local không bật authentication nên để trống CHROMA_TOKEN.
+
+Kiểm tra:
+
+~~~powershell
+docker ps --filter "name=chroma"
+docker logs chromadb
+~~~
+
+### Cài embedding local bằng Ollama
+// Tải embedding local để convert từ văn bảng sang vector db
+1. Cài ollama cho window: irm https://ollama.com/install.ps1 | iex
+2. ollama pull embeddinggemma
+3. Kiểm tra: ollama run embeddinggemma "Xin chào"
+~~~
+
+Cấu hình embedding local trong server/.env:
+
+~~~dotenv
+EMBEDDING_PROVIDER="ollama"
+OLLAMA_URL="http://localhost:11434"
+EMBEDDING_MODEL="embeddinggemma"
+EMBEDDING_API_KEY=""
+~~~
+
+Khi dùng Ollama local, không cần EMBEDDING_API_KEY.
+
+### Cấu hình local tối thiểu
+
+~~~dotenv
+VITE_API_URL="http://localhost:3101/api"
+DATABASE_URL="postgresql://milo:milo_dev_password@localhost:55433/milo?schema=public"
+WEB_ORIGIN="http://localhost:5173"
+PORT="3101"
+REDIS_URL="redis://localhost:56380"
+
+S3_ENDPOINT="http://localhost:59002"
+S3_ACCESS_KEY="milo"
+S3_SECRET_KEY="milo_dev_password"
+S3_BUCKET="milo-documents"
+
+CHROMA_URL="http://localhost:8000"
+CHROMA_TENANT="default_tenant"
+CHROMA_DATABASE="default_database"
+CHROMA_TOKEN=""
+KNOWLEDGE_INDEXING_ENABLED="true"
+
+EMBEDDING_PROVIDER="ollama"
+OLLAMA_URL="http://localhost:11434"
+EMBEDDING_MODEL="embeddinggemma"
+EMBEDDING_API_KEY=""
+~~~
+
+Các thông tin Facebook App ID, App Secret và Login Configuration ID được cấu hình theo từng workspace trong giao diện tích hợp. Không đặt các giá trị này vào .env dùng chung của toàn hệ thống.
+
+### Luồng upload Knowledge Base
+
+~~~text
+Milo upload file
+↓
+MinIO lưu file gốc
+↓
+PostgreSQL lưu Document, DocumentVersion và Chunk
+↓
+Ollama tạo embedding bằng embeddinggemma
+↓
+ChromaDB lưu vector và metadata
+~~~
+
+Metadata vector cần giữ phạm vi workspace và product, ví dụ:
+
+~~~text
+workspaceId
+productId
+documentId
+documentVersionId
+chunkId
+sourceKey
+~~~
+
+Nhờ vậy dữ liệu của các công ty/workspace không bị trộn lẫn.
+
+### Luồng phân tích trend và tìm product phù hợp
+
+~~~text
+AI tìm keyword trend
+↓
+Ollama tạo embedding cho từng keyword
+↓
+Query ChromaDB theo workspace
+↓
+Lấy các chunk liên quan và productId
+↓
+AI phân loại FIT / PARTIAL / NOT_FIT / UNKNOWN
+↓
+Trả product phù hợp cho keyword
+~~~
+
+ChromaDB dùng để tìm các đoạn tài liệu gần nghĩa với keyword. Nội dung chi tiết để AI viết bài vẫn lấy từ tài liệu/version đã xác thực trong PostgreSQL để bám sát tài liệu sản phẩm.
+
+### Khởi động toàn bộ môi trường
+
+~~~powershell
+docker compose up -d --wait postgres redis minio chroma
+npm run db:deploy
+npm run db:seed
+npm run dev:all
+~~~
+
+Các địa chỉ chính:
+
+| Dịch vụ | Địa chỉ |
+| --- | --- |
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:3101/api |
+| MinIO Console theo Compose | http://localhost:59003 |
+| ChromaDB | http://localhost:8000 |
+| Ollama | http://localhost:11434 |
+
+Lưu ý: npm run db:up hiện chỉ khởi động PostgreSQL, Redis và MinIO. Khi cần ChromaDB, chạy thêm docker compose up -d chroma hoặc dùng lệnh khởi động toàn bộ ở trên.
+
+### Xử lý lỗi thường gặp
+
+Lỗi EADDRINUSE nghĩa là cổng đang bị tiến trình khác sử dụng. Kiểm tra cổng 3101 trên Windows:
+
+~~~powershell
+Get-NetTCPConnection -LocalPort 3101 -State Listen |
+  Select-Object LocalAddress, LocalPort, OwningProcess
+Get-Process -Id <PID>
+~~~
+
+Nếu đó là backend cũ, dừng bằng:
+
+~~~powershell
+Stop-Process -Id <PID>
+~~~
+
+Sau khi sửa schema hoặc migration, generate lại Prisma Client:
+
+~~~powershell
+npm run prisma:generate --prefix server
+npm run typecheck --prefix server
+~~~
+
+### Kiểm tra trước khi commit
+
+Không commit .env, server/.env, node_modules, dist, log hoặc secret thật. Nên commit README.md, .env.example, docker-compose.yml, package manifests, Prisma schema/migrations và source code.
+
+~~~powershell
+npm run build
+npm run build:api
+npm run typecheck --prefix server
+git diff --check
+
+git add README.md .env.example docker-compose.yml
+git diff --cached --check
+git commit -m "docs: document local MinIO ChromaDB and Ollama setup"
+~~~
+
+Kiểm tra chắc chắn file môi trường thật chưa được staged:
+
+~~~powershell
+git diff --cached -- .env server/.env
+~~~
+
+Kết quả mong muốn là không có file môi trường thật được đưa vào commit.
+
+### Bảo mật
+
+- Credentials MinIO trong tài liệu chỉ dành cho local development.
+- Không đưa Facebook access token, App Secret, JWT secret hoặc mật khẩu production vào Git.
+- Mọi truy vấn PostgreSQL, MinIO và ChromaDB phải lọc theo workspaceId.
+- Tài liệu upload cần được giới hạn loại file, dung lượng và kiểm tra an toàn trước khi xử lý.

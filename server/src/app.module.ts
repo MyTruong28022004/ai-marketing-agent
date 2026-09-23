@@ -5,6 +5,8 @@ import { CompetitorsModule } from './competitors/competitors.module'
 import { HealthController } from './health.controller'
 import { IntegrationsModule } from './integrations/integrations.module'
 import { PrismaModule } from './prisma/prisma.module'
+import { ProductsModule } from './products/products.module'
+import { TrendsModule } from './trends/trends.module'
 import { WorkspacesModule } from './workspaces/workspaces.module'
 import { VideosModule } from './videos/videos.module'
 import { BillingModule } from './billing/billing.module'
@@ -25,6 +27,8 @@ import { LeadsModule } from './leads/leads.module'
     IntegrationsModule,
     VideosModule,
     LeadsModule,
+    ProductsModule,
+    TrendsModule,
   ],
   controllers: [HealthController],
 })

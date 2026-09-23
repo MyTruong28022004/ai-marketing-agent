@@ -34,7 +34,18 @@ services:
     volumes:
       - milo_minio:/data
 
+  chroma:
+    image: chromadb/chroma:latest
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: /chroma/chroma
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - milo_chroma:/chroma/chroma
+
 volumes:
   milo_postgres:
   milo_redis:
   milo_minio:
+  milo_chroma:

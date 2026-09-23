@@ -219,14 +219,18 @@ function InsightPlaceholder({ tab }) {
   return <section className="intelligence-empty"><span><BarChart3 size={23}/></span><h2>{copy[0]}</h2><p>{copy[1]}</p><div><b>Đang chuẩn bị dữ liệu</b><small>Nguồn và độ tin cậy sẽ luôn đi cùng từng tín hiệu.</small></div></section>
 }
 
-export default function IntelligenceCenter({ workspaceId, role }) {
-  const [tab, setTab] = useState('competitors')
+export default function IntelligenceCenter({ workspaceId, role, initialTab = 'competitors' }) {
+  const [tab, setTab] = useState(initialTab)
   const [data, setData] = useState({ summary: '', generatedAt: null, opportunities: [], keywords: [] })
   const [socialCount, setSocialCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState('')
   const canAnalyze = role === 'ADMIN' || role === 'MARKETER'
+
+  useEffect(() => {
+    if (tabs.some(item => item.key === initialTab)) setTab(initialTab)
+  }, [initialTab])
 
   const load = useCallback(async () => {
     if (!workspaceId) return

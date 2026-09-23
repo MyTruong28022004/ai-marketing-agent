@@ -1,0 +1,1 @@
+ALTER TYPE "ContentFormatType" ADD VALUE 'TEXT_POST' BEFORE 'REEL';
