@@ -37,6 +37,9 @@ Frontend hiện là một MVP tương tác tập trung vào dashboard và produc
 - Theo dõi sức khỏe các kênh.
 - Thẻ AI Agent và công tắc Autopilot.
 - Chat drawer với prompt gợi ý và phản hồi mô phỏng.
+- Video Studio end-to-end: script → AI storyboard → ảnh/voice → editor → render MP4 → thư viện.
+- Editor preview bằng Remotion Player, upload ảnh/video theo scene, nhạc nền và timeline chỉnh sửa.
+- Custom voice có consent recording và voice sample; tài nguyên lưu trong MinIO/S3 theo workspace.
 - Điều hướng bằng URL cho tất cả module chính.
 - Responsive cho desktop, tablet và mobile.
 - Production build bằng Vite.
@@ -64,6 +67,9 @@ Dữ liệu dashboard hiện vẫn là mock data phía frontend. Backend foundat
 | Routing | React Router DOM | 7.18.3 |
 | Build tool | Vite | 6.4.3 |
 | Biểu đồ | Recharts | 2.15.0 |
+| Video preview/editor | Remotion Player | 4.0.525 |
+| Video render | FFmpeg / FFprobe static | Backend |
+| Object storage | S3-compatible / MinIO | Backend |
 | Icon | Lucide React | 0.468.0 |
 | Styling | CSS thuần và CSS variables | Nội bộ |
 
@@ -103,6 +109,28 @@ Tài khoản seed dành cho local development:
 
 Script dev dùng host 0.0.0.0 nên thiết bị khác trong cùng mạng LAN cũng có thể truy cập qua địa chỉ Network mà Vite in trong terminal. Việc truy cập còn phụ thuộc Windows Firewall và cấu hình mạng.
 
+## Cấu hình Video Studio
+
+Storyboard dùng `AI_PROVIDER` hiện có; mặc định local development là `codex-local`. Để tự động sinh ảnh và giọng đọc thật, đặt trong `server/.env`:
+
+    OPENAI_API_KEY="sk-..."
+    OPENAI_IMAGE_MODEL="gpt-image-2.5-flare"
+    OPENAI_SPEECH_MODEL="gpt-4o-mini-tts"
+
+Không được đặt API key vào biến `VITE_`. Nếu chưa có key, luồng vẫn tạo storyboard thật qua Codex và cho phép tải ảnh/video riêng lên từng scene trước khi render.
+
+Luồng vận hành gồm 5 bước, tương ứng với AI Short Video Creator tham chiếu:
+
+1. Nhập chủ đề, import `.txt`/`.md`, dùng script có sẵn hoặc yêu cầu AI viết kịch bản theo Brand Brain.
+2. Duyệt kịch bản; chọn tỷ lệ, hook, nhịp, visual style, số cảnh, audience và CTA; backend lập storyboard.
+3. Duyệt hình từng cảnh; tạo lại bằng AI hoặc upload ảnh/video thay thế.
+4. Chọn built-in/custom voice, tạo audio theo từng cảnh và nghe preview.
+5. Chỉnh lời thoại, prompt, thời lượng, chuyển cảnh, thứ tự, phụ đề và nhạc nền trong Remotion editor; render MP4 H.264 bằng FFmpeg.
+
+Project, MP4, thumbnail, image/video, voice và nhạc nền được lưu trong PostgreSQL + MinIO/S3 theo workspace. Thư viện cho phép mở lại project ở đúng bước còn thiếu và trả signed URL cho preview/download.
+
+Custom voice chỉ hoạt động với tài khoản OpenAI đủ điều kiện. Người dùng phải tải bản ghi consent hợp lệ và voice sample thuộc đúng người đã đồng ý; không dùng giọng của người khác khi chưa được phép.
+
 ## Các lệnh thường dùng
 
 Khởi động development server:
@@ -121,6 +149,10 @@ Kiểm tra dependency:
 
     npm audit
 
+Smoke test riêng cho Video Studio (cần `npm run dev:all` đang chạy):
+
+    npm run test:video-smoke
+
 Thư mục đầu ra production là dist.
 
 ## URL các màn hình
@@ -131,6 +163,7 @@ Thư mục đầu ra production là dist.
 | Kế hoạch tuần | http://localhost:5173/weekly-plan |
 | AI Agent | http://localhost:5173/ai-agent |
 | Content Studio | http://localhost:5173/content-studio |
+| Video Studio | http://localhost:5173/video-studio |
 | Mạng xã hội | http://localhost:5173/social-media |
 | Ads Center | http://localhost:5173/ads-center |
 | Email và Leads | http://localhost:5173/email-leads |
@@ -159,11 +192,14 @@ React Router quản lý URL phía client. Khi deploy, web server phải được
     │       ├── common/
     │       ├── competitors/
     │       ├── prisma/
+    │       ├── videos/
     │       └── workspaces/
     ├── public/
     └── src/
         ├── main.jsx
         ├── App.jsx
+        ├── features/video/
+        ├── video-studio.css
         └── styles.css
 
 Vai trò từng file:

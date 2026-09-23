@@ -12,6 +12,8 @@
     "build:api": "npm run build --prefix server",
     "build:all": "npm run build && npm run build:api",
     "test:frontend-smoke": "node scripts/frontend-smoke.mjs",
+    "test:video-smoke": "node scripts/video-studio-smoke.mjs",
+    "test:rbac-billing-smoke": "node scripts/rbac-billing-smoke.mjs",
     "preview": "vite preview",
     "db:up": "docker compose up -d --wait postgres redis minio",
     "db:down": "docker compose down",
@@ -20,12 +22,14 @@
     "db:seed": "dotenv -e server/.env -- npm run prisma:seed --prefix server"
   },
   "dependencies": {
+    "@remotion/player": "^4.0.525",
     "@vitejs/plugin-react": "4.3.4",
     "lucide-react": "0.468.0",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "react-router-dom": "7.18.3",
     "recharts": "2.15.0",
+    "remotion": "^4.0.525",
     "simple-icons": "^16.31.0",
     "vite": "6.4.3"
   },

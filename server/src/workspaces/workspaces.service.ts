@@ -61,17 +61,25 @@ export class WorkspacesService {
     })
   }
 
-  getMembers(workspaceId: string) {
-    return this.prisma.membership.findMany({
-      where: { workspaceId },
-      select: {
-        id: true,
-        role: true,
-        createdAt: true,
-        user: { select: { id: true, name: true, email: true, status: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    })
+  async getMembers(workspaceId: string) {
+    const [members, invitations] = await Promise.all([
+      this.prisma.membership.findMany({
+        where: { workspaceId },
+        select: {
+          id: true,
+          role: true,
+          createdAt: true,
+          user: { select: { id: true, name: true, email: true, status: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.invitation.findMany({
+        where: { workspaceId, status: InvitationStatus.PENDING, expiresAt: { gt: new Date() } },
+        select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
+    return { members, invitations }
   }
 
   getOnboarding(workspaceId: string) {
@@ -186,6 +194,27 @@ export class WorkspacesService {
     ])
     await this.audit(invitation.workspaceId, user.id, 'member.joined', 'Membership')
     return { workspaceId: invitation.workspaceId, role: invitation.role }
+  }
+
+  async updateMemberRole(workspaceId: string, membershipId: string, actorId: string, role: 'MARKETER' | 'SALES') {
+    const membership = await this.prisma.membership.findFirst({ where: { id: membershipId, workspaceId } })
+    if (!membership) throw new NotFoundException('Không tìm thấy thành viên')
+    if (membership.role === WorkspaceRole.ADMIN) throw new BadRequestException('Không thể thay đổi vai trò Admin tại đây')
+    const updated = await this.prisma.membership.update({
+      where: { id: membershipId },
+      data: { role },
+      select: { id: true, role: true, user: { select: { id: true, name: true, email: true, status: true } } },
+    })
+    await this.audit(workspaceId, actorId, 'member.role_updated', 'Membership', membershipId, { role })
+    return updated
+  }
+
+  async removeMember(workspaceId: string, membershipId: string, actorId: string) {
+    const membership = await this.prisma.membership.findFirst({ where: { id: membershipId, workspaceId } })
+    if (!membership) throw new NotFoundException('Không tìm thấy thành viên')
+    if (membership.role === WorkspaceRole.ADMIN) throw new BadRequestException('Không thể xóa Admin khỏi workspace')
+    await this.prisma.membership.delete({ where: { id: membershipId } })
+    await this.audit(workspaceId, actorId, 'member.removed', 'Membership', membershipId)
   }
 
   private hashToken(token: string) {

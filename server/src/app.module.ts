@@ -6,6 +6,9 @@ import { HealthController } from './health.controller'
 import { IntegrationsModule } from './integrations/integrations.module'
 import { PrismaModule } from './prisma/prisma.module'
 import { WorkspacesModule } from './workspaces/workspaces.module'
+import { VideosModule } from './videos/videos.module'
+import { BillingModule } from './billing/billing.module'
+import { LeadsModule } from './leads/leads.module'
 
 @Module({
   imports: [
@@ -15,10 +18,13 @@ import { WorkspacesModule } from './workspaces/workspaces.module'
       cache: true,
     }),
     PrismaModule,
+    BillingModule,
     AuthModule,
     WorkspacesModule,
     CompetitorsModule,
     IntegrationsModule,
+    VideosModule,
+    LeadsModule,
   ],
   controllers: [HealthController],
 })

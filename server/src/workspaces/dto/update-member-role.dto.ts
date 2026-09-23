@@ -1,10 +1,7 @@
-import { IsEmail, IsIn } from 'class-validator'
 import { WorkspaceRole } from '@prisma/client'
+import { IsIn } from 'class-validator'
 
-export class InviteMemberDto {
-  @IsEmail()
-  email: string
-
+export class UpdateMemberRoleDto {
   @IsIn([WorkspaceRole.MARKETER, WorkspaceRole.SALES])
   role: 'MARKETER' | 'SALES'
 }

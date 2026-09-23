@@ -10,6 +10,7 @@ import { IntegrationsService } from './integrations.service'
 
 @Controller('workspaces/:workspaceId/integrations')
 @UseGuards(JwtAuthGuard, WorkspaceAccessGuard)
+@WorkspaceRoles(WorkspaceRole.MARKETER, WorkspaceRole.ADMIN)
 export class IntegrationsController {
   constructor(private readonly integrations: IntegrationsService) {}
 

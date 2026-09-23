@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Activity, ArrowRight, BadgeCheck, Banknote, BarChart3, Bell, Bot, CalendarDays,
   Check, ChevronDown, ChevronLeft, ChevronRight, Clock3,
-  FileText, Gauge, Globe2, Headphones, HelpCircle, Image, LayoutDashboard,
+  FileText, Film, Gauge, Globe2, Headphones, HelpCircle, Image, LayoutDashboard,
   Lightbulb, LogOut, Mail, Megaphone, Menu, MessageCircle, MoreHorizontal, MousePointerClick,
   PenTool, Plus, Radar, Search, Send, Settings, Sparkles, Target, TrendingUp,
-  Users, WandSparkles, X, Zap
+  Users, WandSparkles, X, Zap, Contact, CreditCard, UserCog
 } from 'lucide-react'
 import { siFacebook, siGmail, siInstagram, siTiktok } from 'simple-icons'
 import {
@@ -17,11 +17,16 @@ import { useAuth } from './auth/AuthContext'
 import IntelligenceCenter from './features/intelligence/IntelligenceCenter'
 import OnboardingPage from './onboarding/OnboardingPage'
 import BrandIcon from './components/BrandIcon'
+import TeamAccess from './features/access/TeamAccess'
+import LeadsDashboard from './features/leads/LeadsDashboard'
+import BillingDashboard from './features/billing/BillingDashboard'
+import { apiRequest } from './lib/api'
 
 const InstagramBrandIcon = props => <BrandIcon icon={siInstagram} {...props}/>
 const FacebookBrandIcon = props => <BrandIcon icon={siFacebook} {...props}/>
 const TikTokBrandIcon = props => <BrandIcon icon={siTiktok} {...props}/>
 const EmailBrandIcon = props => <BrandIcon icon={siGmail} {...props}/>
+const VideoStudio = lazy(() => import('./features/video/VideoStudio'))
 
 const navGroups = [
   { label: 'TỔNG QUAN', items: [
@@ -31,6 +36,7 @@ const navGroups = [
   ]},
   { label: 'SÁNG TẠO & PHÂN PHỐI', items: [
     { name: 'Content Studio', icon: PenTool },
+    { name: 'Video Studio', icon: Film },
     { name: 'Mạng xã hội', icon: Globe2 },
     { name: 'Quảng cáo', icon: Megaphone },
     { name: 'Email & Leads', icon: Mail },
@@ -41,6 +47,11 @@ const navGroups = [
     { name: 'Brand Brain', icon: Bot },
     { name: 'Tích hợp', icon: Zap },
   ]},
+  { label: 'VẬN HÀNH', items: [
+    { name: 'Lead & Pipeline', icon: Contact },
+    { name: 'Quản lý token', icon: CreditCard },
+    { name: 'Thành viên & quyền', icon: UserCog },
+  ]},
 ]
 
 const routePaths = {
@@ -48,6 +59,7 @@ const routePaths = {
   'Kế hoạch tuần': '/weekly-plan',
   'AI Agent': '/ai-agent',
   'Content Studio': '/content-studio',
+  'Video Studio': '/video-studio',
   'Mạng xã hội': '/social-media',
   'Quảng cáo': '/ads-center',
   'Email & Leads': '/email-leads',
@@ -55,6 +67,9 @@ const routePaths = {
   'Radar đối thủ': '/competitors',
   'Brand Brain': '/brand-brain',
   'Tích hợp': '/integrations',
+  'Lead & Pipeline': '/leads',
+  'Quản lý token': '/billing',
+  'Thành viên & quyền': '/team',
 }
 
 const pathRoutes = Object.fromEntries(Object.entries(routePaths).map(([name, path]) => [path, name]))
@@ -91,9 +106,27 @@ function Logo({ compact = false }) {
 
 const roleLabels = { ADMIN: 'Admin', MARKETER: 'Marketer', SALES: 'Sales' }
 
+const salesPaths = new Set(['/', '/leads'])
+const adminOnlyPaths = new Set(['/billing', '/team'])
+const salesOnlyPaths = new Set(['/leads'])
+function isNavVisible(path, role) {
+  if (role === 'ADMIN') return true
+  if (role === 'SALES') return salesPaths.has(path)
+  if (role === 'MARKETER') return !adminOnlyPaths.has(path) && !salesOnlyPaths.has(path)
+  return false
+}
+
 function Sidebar({ active, setActive, open, setOpen, workspace, workspaces, role, user, selectWorkspace, logout }) {
   const [workspaceMenu, setWorkspaceMenu] = useState(false)
   const [userMenu, setUserMenu] = useState(false)
+  const [billingSummary, setBillingSummary] = useState(null)
+  useEffect(() => {
+    document.querySelector('.sidebar .nav-item.active')?.scrollIntoView({ block: 'nearest' })
+  }, [active, billingSummary])
+  useEffect(() => {
+    if (role !== 'ADMIN' || !workspace?.id) { setBillingSummary(null); return }
+    apiRequest(`/workspaces/${workspace.id}/billing/summary`).then(setBillingSummary).catch(() => setBillingSummary(null))
+  }, [role, workspace?.id, active])
   const initials = user?.name?.split(' ').map(part => part[0]).slice(-2).join('').toUpperCase() || 'U'
   return <aside className={`sidebar ${open ? 'mobile-open' : ''}`}>
     <div className="sidebar-head">
@@ -116,7 +149,7 @@ function Sidebar({ active, setActive, open, setOpen, workspace, workspaces, role
     </div>
 
     <nav>
-      {navGroups.map(group => <div className="nav-group" key={group.label}>
+      {navGroups.map(group => ({ ...group, items: group.items.filter(item => isNavVisible(routePaths[item.name], role)) })).filter(group => group.items.length).map(group => <div className="nav-group" key={group.label}>
         <p>{group.label}</p>
         {group.items.map(item => {
           const Icon = item.icon
@@ -128,12 +161,12 @@ function Sidebar({ active, setActive, open, setOpen, workspace, workspaces, role
     </nav>
 
     <div className="sidebar-foot">
-      <div className="plan-card">
-        <div><span>GÓI GROWTH</span><b>72%</b></div>
-        <div className="progress"><i /></div>
-        <p>18.240 / 25.000 AI credits</p>
-        <button>Nâng cấp gói <ArrowRight size={14}/></button>
-      </div>
+      {role === 'ADMIN' && billingSummary && <div className="plan-card">
+        <div><span>GÓI {billingSummary.plan.name.toUpperCase()}</span><b>{billingSummary.usagePercent}%</b></div>
+        <div className="progress"><i style={{ width: `${billingSummary.usagePercent}%` }}/></div>
+        <p>{new Intl.NumberFormat('vi-VN').format(billingSummary.usedTokens)} / {new Intl.NumberFormat('vi-VN').format(billingSummary.subscription.includedTokens)} token</p>
+        <button onClick={() => setActive('Quản lý token')}>Quản lý gói <ArrowRight size={14}/></button>
+      </div>}
       <button className="nav-item"><HelpCircle size={18}/><span>Trợ giúp & hướng dẫn</span></button>
       <button className="user-row" onClick={() => setUserMenu(value => !value)} aria-expanded={userMenu}>
         <span className="user-avatar">{initials}<i/></span>
@@ -348,11 +381,14 @@ export default function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [location.pathname, workspace?.onboardingStatus])
+  useEffect(() => {
+    if (status === 'authenticated' && role && !isNavVisible(location.pathname, role)) navigate('/', { replace: true })
+  }, [location.pathname, navigate, role, status])
   const greeting = useMemo(() => {
     const hour = new Date().getHours()
     return hour < 12 ? 'Chào buổi sáng' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối'
   }, [])
-  const showToast = text => { setToast(text); setTimeout(() => setToast(''), 2400) }
+  const showToast = useCallback(text => { setToast(text); setTimeout(() => setToast(''), 2400) }, [])
 
   if (status === 'loading') return <div className="app-loading"><div className="logo-mark"><span>M</span><i /></div><span className="button-spinner dark"/><p>Đang khôi phục phiên làm việc...</p></div>
   if (status === 'guest') return <AuthPage />
@@ -364,7 +400,9 @@ export default function App() {
     <div className="main-shell">
       <Header setMenuOpen={setMenuOpen} openChat={() => setChatOpen(true)}/>
       <main className="main-content">
-        {active === 'Trang chủ' ? <>
+        {role === 'SALES' && active === 'Trang chủ'
+          ? <LeadsDashboard workspaceId={workspace.id} role={role} showToast={showToast}/>
+          : active === 'Trang chủ' ? <>
           <div className="welcome-row">
             <div><p>KHÔNG GIAN · {workspace.name.toUpperCase()}</p><h1>{greeting}, {user.name.split(' ').slice(-1)[0]} <span>✦</span></h1><small>Đây là những gì đang diễn ra với hoạt động marketing của bạn.</small></div>
             <button className="outline-btn" onClick={() => showToast('Đã tạo bản báo cáo tuần')}><FileText size={16}/> Báo cáo tuần <ChevronDown size={14}/></button>
@@ -379,7 +417,17 @@ export default function App() {
             </div>
             <div className="dashboard-aside"><AgentCard setChatOpen={setChatOpen} userName={user.name} workspaceName={workspace.name}/><ChannelHealth/></div>
           </div>
-        </> : active === 'Radar đối thủ' ? <IntelligenceCenter workspaceId={workspace.id} role={role}/> : <PlaceholderView title={active} setActive={setActive} workspaceName={workspace.name}/>} 
+        </> : active === 'Lead & Pipeline'
+          ? <LeadsDashboard workspaceId={workspace.id} role={role} showToast={showToast}/>
+          : active === 'Quản lý token'
+            ? <BillingDashboard workspaceId={workspace.id} role={role} showToast={showToast}/>
+            : active === 'Thành viên & quyền'
+              ? <TeamAccess workspaceId={workspace.id} showToast={showToast}/>
+              : active === 'Radar đối thủ'
+          ? <IntelligenceCenter workspaceId={workspace.id} role={role}/>
+          : active === 'Video Studio'
+            ? <Suspense fallback={<div className="app-loading"><span className="button-spinner dark"/><p>Đang tải Video Studio...</p></div>}><VideoStudio key={workspace.id} workspaceId={workspace.id} workspaceName={workspace.name} showToast={showToast}/></Suspense>
+            : <PlaceholderView title={active} setActive={setActive} workspaceName={workspace.name}/>}
       </main>
     </div>
     <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} showToast={showToast} workspaceName={workspace.name} userName={user.name}/>

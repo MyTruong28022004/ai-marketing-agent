@@ -92,7 +92,23 @@ async function main() {
     create: { userId: user.id, workspaceId: workspace.id, role: WorkspaceRole.ADMIN },
   })
 
-  console.log('Seeded admin@milo.local / MiloDemo123!')
+  for (const account of [
+    { email: 'marketer@milo.local', name: 'Milo Marketer', role: WorkspaceRole.MARKETER },
+    { email: 'sales@milo.local', name: 'Milo Sales', role: WorkspaceRole.SALES },
+  ]) {
+    const member = await prisma.user.upsert({
+      where: { email: account.email },
+      update: { name: account.name, passwordHash },
+      create: { email: account.email, name: account.name, passwordHash, emailVerifiedAt: new Date() },
+    })
+    await prisma.membership.upsert({
+      where: { userId_workspaceId: { userId: member.id, workspaceId: workspace.id } },
+      update: { role: account.role },
+      create: { userId: member.id, workspaceId: workspace.id, role: account.role },
+    })
+  }
+
+  console.log('Seeded admin, marketer and sales demo accounts / MiloDemo123!')
 }
 
 main()
